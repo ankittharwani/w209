@@ -1,0 +1,16 @@
+<html>
+<head>
+	<title>Awesome App</title>
+	<script src="bower_components/jquery/dist/jquery.min.js"></script>
+	<script>
+		$.getJSON("http://hedonometer.org/data/weather.json", function( data ) {
+			console.log(data);
+			$('#nina').text(data.timezone);
+		});
+	</script>
+</head>
+
+<body>
+<div id="nina"></div>
+</body>
+</html>
