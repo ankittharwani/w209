@@ -1,0 +1,221 @@
+<html>
+<head>
+	<title>W209 - Week7 - Assignment</title>
+	<script src="bower_components/jquery/dist/jquery.min.js"></script>
+	<script src="bower_components/d3/d3.min.js"></script>
+	<style>
+		.bar {
+		  fill: darkslategrey;
+		}
+
+		.bar:hover {
+		  fill: indianred;
+		}
+
+		.axis {
+		  font: 10px sans-serif;
+		}
+
+		.axis path,
+		.axis line {
+		  fill: none;
+		  stroke: #000;
+		  shape-rendering: crispEdges;
+		}
+
+		.x.axis path {
+		  display: none;
+		}
+
+		.line {
+  		  fill: none;
+  		  stroke: darkslategrey;
+		  stroke-width: 1.5px;
+		}
+	</style>
+</head>
+<body>
+	<script>
+	var weeklyJSON, dailyJSON;
+	var margin = {top: 20, right: 20, bottom: 30, left: 40},
+			width = (960 - margin.left - margin.right)/2,
+			height = 500 - margin.top - margin.bottom;
+
+	var format = d3.time.format("%I:%M");
+	var timeFormat = function(d) {
+		console.log(d);
+		console.log(new Date(d));
+		return format(new Date(d));
+	}
+	var x1 = d3.scale.ordinal()
+		.rangeRoundBands([0, width], .1);
+
+	var y1 = d3.scale.linear()
+		.range([height, 0]);
+
+	var xAxis1 = d3.svg.axis()
+		.scale(x1)
+		.orient("bottom");
+
+	var yAxis1 = d3.svg.axis()
+		.scale(y1)
+		.orient("left");
+
+	var x2 = d3.time.scale()
+    	.range([0, width]);
+
+	var y2 = d3.scale.linear()
+    	.range([height, 0]);
+
+	var xAxis2 = d3.svg.axis()
+    	.scale(x2)
+    	.orient("bottom");
+    	//.tickFormat(timeFormat);
+
+	var yAxis2 = d3.svg.axis()
+   		.scale(y2)
+   		.orient("left");
+
+	var line = d3.svg.line()
+   		.x(function(d) { return x2(d.timestamp); console.log(d);})
+    	.y(function(d) { return y2(d.value); });
+
+	var svg = d3.select("body").append("svg")
+			.attr("width", width + margin.left + margin.right)
+			.attr("height", height + margin.top + margin.bottom)
+			.append("g")
+			.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+	var svg2 = d3.select("body").append("svg")
+			.attr("width", width + margin.left + margin.right)
+			.attr("height", height + margin.top + margin.bottom)
+			.append("g")
+			.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+	d3.json("data_weekly.json", function(error, data) {
+		if (error) return console.warn(error);
+		weeklyJSON = data;
+		x1.domain(weeklyJSON.map(function(d) { return d.groupKey; }));
+		y1.domain([0, d3.max(weeklyJSON, function(d) { return d["distance"]; })]);
+
+		svg.append("g")
+			.attr("class", "x axis")
+			.attr("transform", "translate(0," + height + ")")
+			.call(xAxis1);
+		svg.append("g")
+			.attr("class", "y axis")
+			.call(yAxis1)
+			.append("text")
+			.attr("transform", "rotate(-90)")
+			.attr("y", 6)
+			.attr("dy", ".71em")
+			.attr("class", "y-axis-text")
+			.style("text-anchor", "end")
+			.text("distance");
+
+		svg.selectAll(".bar")
+			.data(weeklyJSON)
+			.enter().append("rect")
+			.attr("class", "bar")
+			.attr("x", function(d) { return x1(d.groupKey); })
+			.attr("width", x1.rangeBand())
+			.attr("y", function(d) { return y1(d["distance"]); })
+			.attr("height", function(d) { return height - y1(d["distance"]); })
+			.on("click", drillData);
+	});
+
+	d3.json("data_daily.json", function(error, data) {
+		if (error) return console.warn(error);
+		dailyJSON = data.graph_list;
+		var dayData = dailyJSON[0].items;
+
+		x2.domain(d3.extent(dayData, function(d) { return d.timestamp; }));
+  		y2.domain(d3.extent(dayData, function(d) { return d.value; }));
+
+		svg2.append("g")
+			.attr("class", "x axis")
+			.attr("transform", "translate(0," + height + ")")
+			.call(xAxis2);
+
+		svg2.append("g")
+			.attr("class", "y axis")
+			.call(yAxis2)
+			.append("text")
+			.attr("transform", "rotate(-90)")
+			.attr("y", 6)
+			.attr("dy", ".71em")
+			.style("text-anchor", "end")
+			.text("Score");
+
+		svg2.append("path")
+			.datum(dayData)
+			.attr("class", "line")
+			.attr("d", line);
+
+		d3.selectAll(".bar")
+  			.filter(function(d) { return d.groupKey == dailyJSON[0].date; })
+  			.style("fill", "indianred");
+	});
+
+	function updateDataWeek(key) {
+		x1.domain(weeklyJSON.map(function(d) { return d.groupKey; }));
+		y1.domain([0, d3.max(weeklyJSON, function(d) { return d[key]; })]);
+		var svg = d3.select("body").transition();
+		svg.selectAll(".bar")
+			.duration(750)
+			.attr("y", function(d) { return y1(d[key]); })
+			.attr("height", function(d) { return height - y1(d[key]); });
+		svg.select(".x .axis") // change the x axis
+		    .duration(750)
+		    .call(xAxis1);
+		svg.select(".y .axis")
+			.duration(750)
+			.call(yAxis1);
+		svg.select(".y-axis-text")
+			.text(key);
+	}
+
+	function updateDataDay(dayData) {
+		x2.domain(d3.extent(dayData, function(d) { return d.timestamp; }));
+  		y2.domain(d3.extent(dayData, function(d) { return d.value; }));
+  		var svg = d3.select("body").transition();
+  		//var path = d3.select("path");
+  		svg.selectAll(".line")
+  			.transition()
+  			.duration(750)
+			.attr("d", line(dayData));
+		svg.select(".x .axis") // change the x axis
+		    .duration(750)
+		    .call(xAxis2);
+		svg.select(".y .axis")
+			.duration(750)
+			.call(yAxis2);
+	}
+
+	function drillData(key) {
+		d3.selectAll(".bar")
+			.style("fill", "darkslategrey");
+		d3.selectAll(".bar")
+  			.filter(function(d) { return d.groupKey == key.groupKey; })
+  			.style("fill", "indianred");
+		$.each(dailyJSON, function (idx, obj) {
+    		if (obj.date == key.groupKey) {
+    			dayData = obj.items;
+    			updateDataDay(dayData)
+    		}
+		});
+	}	
+
+	</script>
+</body>
+	<div>
+		<a href="javascript:updateDataWeek('distance');">Distance</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+		<a href="javascript:updateDataWeek('steps');">Steps</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+		<a href="javascript:updateDataWeek('points');">Points</a>
+	</div>
+	<br />
+	<div>
+The above viz is based on activity data from Misfit synchronised from my Pebble Watch.<br /><br />
+The bar chart on the left represents weekly view of the activity. This can be switched between "Distance", "Steps" and "Points". As a default selection, "Distance" is selected. <br /><br />
+The line chart on the right represents the intra-day view of activity. Day selection on the bar chart changes the intraday view on the line chart - i.e. clicking on the day bars switches the day context for line graph.</div>
+</html>
