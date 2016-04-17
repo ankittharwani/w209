@@ -17,7 +17,7 @@
 	var citiDataJSON, mapx, baseLayer, heatmapLayer, pruneCluster;
 	var citiReducedData = [];
 	var max = 0, latSum = 0, lngSum = 0;
-	d3.csv("sample.csv", function(error, data) {
+	d3.csv("citibike.csv", function(error, data) {
 		if (error) return console.warn(error);
 
 		leafletView = new PruneClusterForLeaflet();
