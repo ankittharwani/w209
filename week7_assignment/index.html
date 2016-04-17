@@ -127,10 +127,10 @@
 	d3.json("data_daily.json", function(error, data) {
 		if (error) return console.warn(error);
 		dailyJSON = data.graph_list;
-		var dayData = dailyJSON[0].items;
+		var dayData = dailyJSON[3].items;
 
 		x2.domain(d3.extent(dayData, function(d) { return d.timestamp; }));
-  		y2.domain(d3.extent(dayData, function(d) { return d.value; }));
+  	y2.domain(d3.extent(dayData, function(d) { return d.value; }));
 
 		svg2.append("g")
 			.attr("class", "x axis")
@@ -204,7 +204,7 @@
     			updateDataDay(dayData)
     		}
 		});
-	}	
+	}
 
 	</script>
 </body>

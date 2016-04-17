@@ -1,0 +1,279 @@
+<html>
+<head>
+	<title>W209 - Assignment6</title>
+	<link href="bower_components/leaflet/dist/leaflet.css" rel="stylesheet">
+	<link href="bower_components/Leaflet.EasyButton/src/easy-button.css" rel="stylesheet">
+	<link href="bower_components/font-awesome/css/font-awesome.min.css" rel="stylesheet">
+
+	<script src="bower_components/jquery/dist/jquery.min.js"></script>
+	<script src="bower_components/d3/d3.min.js"></script>
+	<script src="bower_components/leaflet/dist/leaflet.js"></script>
+	<script src="bower_components/heatmap.js-amd/build/heatmap.min.js"></script>
+	<script src="bower_components/heatmap.js-amd/plugins/leaflet-heatmap.js"></script>
+	<script src="bower_components/PruneCluster/dist/PruneCluster.js"></script>
+	<script src="bower_components/Leaflet.EasyButton/src/easy-button.js"></script>
+	<script>
+
+	var citiDataJSON, mapx, baseLayer, heatmapLayer, pruneCluster;
+	var citiReducedData = [];
+	var max = 0, latSum = 0, lngSum = 0;
+	d3.csv("sample.csv", function(error, data) {
+		if (error) return console.warn(error);
+
+		leafletView = new PruneClusterForLeaflet();
+
+		leafletView.BuildLeafletClusterIcon = function(cluster) {
+			var e = new L.Icon.MarkerCluster();
+			e.stats = cluster.stats;
+			e.population = cluster.population;
+			return e;
+		};
+
+
+		var colors = ['#ff4b00', '#bac900', '#EC1813', '#55BCBE', '#D2204C', '#FF0000', '#ada59a', '#3e647e'],
+		pi2 = Math.PI * 2;
+
+		L.Icon.MarkerCluster = L.Icon.extend({
+			options: {
+				iconSize: new L.Point(44, 44),
+				className: 'prunecluster leaflet-markercluster-icon'
+			},
+			createIcon: function () {
+				// based on L.Icon.Canvas from shramov/leaflet-plugins (BSD licence)
+				var e = document.createElement('canvas');
+				this._setIconStyles(e, 'icon');
+				var s = this.options.iconSize;
+				e.width = s.x;
+				e.height = s.y;
+				this.draw(e.getContext('2d'), s.x, s.y);
+				return e;
+			},
+			createShadow: function () {
+				return null;
+			},
+			draw: function(canvas, width, height) {
+				var lol = 0;
+				var start = 0;
+				for (var i = 0, l = colors.length; i < l; ++i) {
+					var size = this.stats[i] / this.population;
+					if (size > 0) {
+						canvas.beginPath();
+						canvas.moveTo(22, 22);
+						canvas.fillStyle = colors[i];
+						var from = start + 0.14,
+						to = start + size * pi2;
+						if (to < from) {
+							from = start;
+						}
+						canvas.arc(22,22,22, from, to);
+						start = start + size*pi2;
+						canvas.lineTo(22,22);
+						canvas.fill();
+						canvas.closePath();
+					}
+				}
+				canvas.beginPath();
+				canvas.fillStyle = 'white';
+				canvas.arc(22, 22, 18, 0, Math.PI*2);
+				canvas.fill();
+				canvas.closePath();
+				canvas.fillStyle = '#555';
+				canvas.textAlign = 'center';
+				canvas.textBaseline = 'middle';
+				canvas.font = 'bold 12px sans-serif';
+				canvas.fillText(this.population, 22, 22, 40);
+			}
+		});
+
+		for(i=0;i<data.length;i++)
+		{
+			citiReducedData[i] = {};
+			citiReducedData[i]['tripduration'] = parseFloat(data[i]['tripduration']);
+			if (citiReducedData[i]['tripduration'] > max) max = citiReducedData[i]['tripduration'];
+
+			citiReducedData[i]['lng'] = parseFloat(data[i]['start_station_longitude']);
+			lngSum += citiReducedData[i]['lng'];
+
+			citiReducedData[i]['lat'] = parseFloat(data[i]['start_station_latitude']);
+			latSum += citiReducedData[i]['lat'];
+
+			citiReducedData[i]['gender'] = parseInt(data[i]['gender']);
+
+			var marker = new PruneCluster.Marker(citiReducedData[i]['lat'], citiReducedData[i]['lng']);
+			marker.category = citiReducedData[i]['gender'];
+			leafletView.RegisterMarker(marker);
+		}
+		leafletView.ProcessView();
+		citiDataJSON = JSON.parse(JSON.stringify(citiReducedData));
+
+		baseLayer = L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+			maxZoom: 18,
+			attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
+			'<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+			'Imagery © <a href="http://mapbox.com">Mapbox</a>',
+			id: 'mapbox.light',
+			accessToken: 'pk.eyJ1IjoiYW5raXR0aGFyd2FuaSIsImEiOiJjaW4wcjAzYm0wMG9vdjlseTYwNHF4MWJiIn0.rFqTHzL7hwuxBbsFgAWbag',
+			detectRetina: true,
+		});
+		//var marker = L.marker([37.872015, -122.258754]).addTo(citiBikeMap);
+
+		var cfg = {
+			"radius": 0.001,
+			"maxOpacity": .7,
+			"scaleRadius": true,
+			"useLocalExtrema": true,
+			latField: 'lat',
+			lngField: 'lng',
+			valueField: 'tripduration'
+		};
+
+		heatmapLayer = new HeatmapOverlay(cfg);
+
+		mapx = new L.Map('citiBikeMap', {
+			center: new L.LatLng(latSum/data.length, lngSum/data.length),
+			zoom: 14,
+			layers: [baseLayer]
+		});
+
+		var mapData = {
+			max: max,
+			data: citiDataJSON
+		};
+		heatmapLayer.setData(mapData);
+
+		//mapx.addLayer(leafletView);
+
+		var toggleHeatMap = L.easyButton({
+			states: [{
+				stateName: 'add-heatmap',
+				icon: 'fa-map-marker fa-2x',
+				title: 'Add HeatMap Layer',
+				onClick: function(control) {
+					mapx.addLayer(heatmapLayer);
+					control.state('remove-heatmap');
+				}
+			}, {
+				icon: 'fa-undo fa-2x',
+				stateName: 'remove-heatmap',
+				onClick: function(control) {
+					mapx.removeLayer(heatmapLayer);
+					control.state('add-heatmap');
+				},
+				title: 'Remove HeatMap Layer'
+			}]
+		});
+		toggleHeatMap.addTo(mapx);
+
+		var toggleCluster = L.easyButton({
+			states: [{
+				stateName: 'add-cluster',
+				icon: 'fa-map-pin fa-2x',
+				title: 'Add HeatMap Layer',
+				onClick: function(control) {
+					mapx.addLayer(leafletView);
+					control.state('remove-cluster');
+				}
+			}, {
+				icon: 'fa-undo fa-2x',
+				stateName: 'remove-cluster',
+				onClick: function(control) {
+					mapx.removeLayer(leafletView);
+					control.state('add-cluster');
+				},
+				title: 'Remove HeatMap Layer'
+			}]
+		});
+		toggleCluster.addTo(mapx);
+		var info = L.control();
+
+		info.onAdd = function (map) {
+			this._div = L.DomUtil.create('div', 'info'); // create a div with a class "info"
+			this._div.innerHTML = '<h3>Citi Bike Rental in New York</h3><br />'
+			this._div.innerHTML += '<p>Click Buttons on the left to toggle:</p>'
+			this._div.innerHTML += '<p>HeatMap / ClusterMap</p><br />'
+			this._div.innerHTML += '<p>HeatMap: Based on Trip Duration (seconds)</p>'
+			this._div.innerHTML += '<p>ClusterMap: Based on Gender</p>'
+			//this.update();
+			return this._div;
+		};
+		info.addTo(mapx);
+
+		var legend = L.control({position: 'bottomright'});
+
+		legend.onAdd = function (map) {
+
+			var div = L.DomUtil.create('div', 'info legend'),
+			grades = [0, 1, 2],
+			labels = ['Unknown', 'Male', 'Female'];
+			for (var i = 0; i < grades.length; i++) {
+				div.innerHTML +=
+				'<i style="background:' + colors[i] + '"></i> ' + labels[i] + '<br>';
+			}
+
+			return div;
+		};
+
+		legend.addTo(mapx);
+
+	});
+
+	</script>
+	<style>
+	.bar {
+		fill: steelblue;
+	}
+
+	.bar:hover {
+		fill: brown;
+	}
+
+	.axis {
+		font: 10px sans-serif;
+	}
+
+	.axis path,
+	.axis line {
+		fill: none;
+		stroke: #000;
+		shape-rendering: crispEdges;
+	}
+
+	.x.axis path {
+		display: none;
+	}
+	.info {
+		padding: 6px 8px;
+		font: 14px/16px Arial, Helvetica, sans-serif;
+		background: white;
+		background: rgba(255,255,255,0.8);
+		box-shadow: 0 0 15px rgba(0,0,0,0.2);
+		border-radius: 5px;
+	}
+	.info h3 {
+		margin: 0 0 5px;
+		color: #777;
+	}
+
+	.info p {
+		margin: 0 0 5px;
+		color: #777;
+	}
+
+	.legend {
+		line-height: 18px;
+		color: #555;
+	}
+	.legend i {
+		width: 18px;
+		height: 18px;
+		float: left;
+		margin-right: 8px;
+		opacity: 0.7;
+	}
+	</style>
+</head>
+<body>
+	<div id="citiBikeMap" style="height: 100vh;"></div>
+
+</body>
+</html>
